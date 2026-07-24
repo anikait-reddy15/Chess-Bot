@@ -3,4 +3,12 @@ project(ProjectA)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(engine src/main.cpp)
+# Explicitly list all source files to be compiled together
+add_executable(engine 
+    src/main.cpp
+    src/bitboard.cpp
+    src/evaluation.cpp
+    src/movegen.cpp
+    src/search.cpp
+    src/uci.cpp
+)
