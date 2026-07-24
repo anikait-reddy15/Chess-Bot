@@ -72,6 +72,70 @@ U64 mask_pawn_attacks(int side, int square) {
     return attacks;
 }
 
+U64 get_bishop_attacks(int square, U64 block) {
+    U64 attacks = 0ULL;
+    int r = square / 8; // Target rank
+    int f = square % 8; // Target file
+
+    // Up-Right (Rank decreases, File increases)
+    for (int i = r - 1, j = f + 1; i >= 0 && j <= 7; i--, j++) {
+        U64 sq = 1ULL << (i * 8 + j);
+        attacks |= sq;
+        if (sq & block) break; // Stop if we hit a piece
+    }
+    // Up-Left (Rank decreases, File decreases)
+    for (int i = r - 1, j = f - 1; i >= 0 && j >= 0; i--, j--) {
+        U64 sq = 1ULL << (i * 8 + j);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    // Down-Right (Rank increases, File increases)
+    for (int i = r + 1, j = f + 1; i <= 7 && j <= 7; i++, j++) {
+        U64 sq = 1ULL << (i * 8 + j);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    // Down-Left (Rank increases, File decreases)
+    for (int i = r + 1, j = f - 1; i <= 7 && j >= 0; i++, j--) {
+        U64 sq = 1ULL << (i * 8 + j);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    return attacks;
+}
+
+U64 get_rook_attacks(int square, U64 block) {
+    U64 attacks = 0ULL;
+    int r = square / 8;
+    int f = square % 8;
+
+    // Up (Rank decreases)
+    for (int i = r - 1; i >= 0; i--) {
+        U64 sq = 1ULL << (i * 8 + f);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    // Down (Rank increases)
+    for (int i = r + 1; i <= 7; i++) {
+        U64 sq = 1ULL << (i * 8 + f);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    // Left (File decreases)
+    for (int i = f - 1; i >= 0; i--) {
+        U64 sq = 1ULL << (r * 8 + i);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    // Right (File increases)
+    for (int i = f + 1; i <= 7; i++) {
+        U64 sq = 1ULL << (r * 8 + i);
+        attacks |= sq;
+        if (sq & block) break;
+    }
+    return attacks;
+}
+
 void init_leapers() {
     for (int square = 0; square < 64; square++) {
         knight_attacks[square] = mask_knight_attacks(square);
