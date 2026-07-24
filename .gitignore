@@ -1,0 +1,12 @@
+# CMake build directories
+/build/
+out/
+
+# Python virtual environment and caches
+/venv/
+/__pycache__/
+*.pyc
+
+# OS generated files
+.DS_Store
+Thumbs.db
