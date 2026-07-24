@@ -4,17 +4,15 @@
 int main() {
     std::cout << "Project A Engine Initialized\n";
     
-    // Create an empty bitboard (all zeros)
-    U64 pawns = 0ULL;
+    std::cout << "\nStarting Chessboard Position:\n";
+    print_board();
     
-    // Set a bit on square 8 (which is 'a7' in standard mapping)
-    set_bit(pawns, 8);
+    // Example: Move the e2 pawn to e4 and print the updated board
+    pop_bit(bitboards[P], e2);
+    set_bit(bitboards[P], e4);
     
-    // Set a bit on square 15 (which is 'h7')
-    set_bit(pawns, 15);
-    
-    // Print the visual representation
-    print_bitboard(pawns);
+    std::cout << "\nBoard after e4:\n";
+    print_board();
     
     return 0;
 }

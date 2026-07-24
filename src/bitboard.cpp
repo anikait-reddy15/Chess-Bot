@@ -1,7 +1,5 @@
 #include "bitboard.h"
 
-#include "bitboard.h"
-
 // Initialize the 12 bitboards with the standard chess starting position
 U64 bitboards[12] = {
     0x00FF000000000000ULL, // P (White Pawns)
@@ -22,23 +20,48 @@ void print_bitboard(U64 bitboard) {
     std::cout << "\n";
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
-            // Convert rank and file to a square index (0 to 63)
             int square = rank * 8 + file;
-            
-            // Print rank numbers on the left side
-            if (!file) {
-                std::cout << 8 - rank << "  ";
-            }
-            
-            // Print the bit state (1 or 0)
+            if (!file) std::cout << 8 - rank << "  ";
             std::cout << get_bit(bitboard, square) << " ";
         }
         std::cout << "\n";
     }
-    
+    std::cout << "\n   a b c d e f g h\n\n";
+    std::cout << "   Bitboard: " << bitboard << "\n\n";
+}
+
+void print_board() {
+    std::cout << "\n";
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            int square = rank * 8 + file;
+            
+            // Print rank numbers on the left
+            if (!file) {
+                std::cout << 8 - rank << "  ";
+            }
+            
+            // Variable to track which piece occupies the square
+            int piece = -1;
+            
+            // Loop through all 12 bitboards to see if a piece is on this square
+            for (int bb_piece = P; bb_piece <= k; bb_piece++) {
+                if (get_bit(bitboards[bb_piece], square)) {
+                    piece = bb_piece;
+                    break; // Found the piece, no need to check other bitboards
+                }
+            }
+            
+            // If piece is -1, the square is empty, print a dot
+            // Otherwise, print the corresponding ASCII character
+            if (piece == -1) {
+                std::cout << ". ";
+            } else {
+                std::cout << ascii_pieces[piece] << " ";
+            }
+        }
+        std::cout << "\n";
+    }
     // Print file letters at the bottom
     std::cout << "\n   a b c d e f g h\n\n";
-    
-    // Print the decimal value of the bitboard
-    std::cout << "   Bitboard: " << bitboard << "\n\n";
 }

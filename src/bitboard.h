@@ -16,11 +16,14 @@ enum {
     a4, b4, c4, d4, e4, f4, g4, h4,
     a3, b3, c3, d3, e3, f3, g3, h3,
     a2, b2, c2, d2, e2, f2, g2, h2,
-    a1, b1, c1, d1, e1, f1, g1, h1  
+    a1, b1, c1, d1, e1, f1, g1, h1
 };
 
 // Piece encoding
 enum { P, N, B, R, Q, K, p, n, b, r, q, k };
+
+// ASCII characters for pieces (matches the enum order)
+const char ascii_pieces[] = "PNBRQKpnbrqk";
 
 // Global array to hold bitboards for all 12 piece types
 extern U64 bitboards[12];
@@ -41,4 +44,7 @@ inline void pop_bit(U64 &bitboard, int square) {
 // Function to visualize a specific bitboard
 void print_bitboard(U64 bitboard);
 
-#endif
+// Function to visualize the entire board state
+void print_board();
+
+#endif  
