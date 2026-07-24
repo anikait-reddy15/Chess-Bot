@@ -1,18 +1,20 @@
 #include <iostream>
 #include "bitboard.h"
+#include "movegen.h"
 
 int main() {
     std::cout << "Project A Engine Initialized\n";
     
-    std::cout << "\nStarting Chessboard Position:\n";
-    print_board();
+    // Pre-calculate all static attacks at startup
+    init_leapers();
     
-    // Example: Move the e2 pawn to e4 and print the updated board
-    pop_bit(bitboards[P], e2);
-    set_bit(bitboards[P], e4);
+    // Test the O(1) lookup table: Find all squares a Knight attacks from e4
+    std::cout << "\nKnight Attacks from e4:";
+    print_bitboard(knight_attacks[e4]);
     
-    std::cout << "\nBoard after e4:\n";
-    print_board();
+    // Test the King lookup table: Find all squares a King attacks from a8 (corner)
+    std::cout << "\nKing Attacks from a8:";
+    print_bitboard(king_attacks[a8]);
     
     return 0;
 }
