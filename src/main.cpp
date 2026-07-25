@@ -110,8 +110,15 @@ int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers(); // Initialize lookup tables
     
+    // Set up the notoriously tricky "Kiwipete" position
+    std::string kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+    parse_fen(kiwipete);
+    
+    std::cout << "\nPosition: Kiwipete\n";
+    print_board();
+    
     // Run Perft at Depth 4. 
-    // The exact expected answer is 197,281 nodes.
+    // The exact expected answer for Kiwipete Depth 4 is 4,085,603 nodes.
     perft_test(4);
     
     return 0;

@@ -75,3 +75,79 @@ void print_board() {
     std::cout << "   En Passant: " << (enpassant != -1 ? std::to_string(enpassant) : "None") << "\n";
     std::cout << "   Castling Rights: " << castle << "\n\n";
 }
+
+void parse_fen(std::string fen) {
+    // Reset the board state
+    for (int i = 0; i < 12; i++) bitboards[i] = 0ULL;
+    side = white;
+    enpassant = -1;
+    castle = 0;
+    
+    int square = 0;
+    int i = 0;
+    
+    // 1. Parse piece placement
+    while (i < fen.length() && fen[i] != ' ') {
+        if (fen[i] == '/') {
+            i++;
+            continue;
+        }
+        // If it's a number, skip that many empty squares
+        if (fen[i] >= '1' && fen[i] <= '8') {
+            square += (fen[i] - '0');
+        } else {
+            // It's a piece character, match it and set the bit
+            int piece = -1;
+            switch (fen[i]) {
+                case 'P': piece = P; break;
+                case 'N': piece = N; break;
+                case 'B': piece = B; break;
+                case 'R': piece = R; break;
+                case 'Q': piece = Q; break;
+                case 'K': piece = K; break;
+                case 'p': piece = p; break;
+                case 'n': piece = n; break;
+                case 'b': piece = b; break;
+                case 'r': piece = r; break;
+                case 'q': piece = q; break;
+                case 'k': piece = k; break;
+            }
+            if (piece != -1) {
+                set_bit(bitboards[piece], square);
+                square++;
+            }
+        }
+        i++;
+    }
+    
+    i++; // Skip the space
+    
+    // 2. Parse side to move
+    if (i < fen.length()) {
+        side = (fen[i] == 'w') ? white : black;
+        i += 2; // Skip 'w' or 'b' and the following space
+    }
+    
+    // 3. Parse castling rights
+    while (i < fen.length() && fen[i] != ' ') {
+        switch (fen[i]) {
+            case 'K': castle |= 1; break; // Bit 1
+            case 'Q': castle |= 2; break; // Bit 2
+            case 'k': castle |= 4; break; // Bit 3
+            case 'q': castle |= 8; break; // Bit 4
+            case '-': break; // No castling rights
+        }
+        i++;
+    }
+    
+    i++; // Skip the space
+    
+    // 4. Parse en passant square
+    if (i < fen.length() && fen[i] != '-') {
+        int file = fen[i] - 'a';
+        int rank = 8 - (fen[i+1] - '0');
+        enpassant = rank * 8 + file;
+    } else {
+        enpassant = -1;
+    }
+}

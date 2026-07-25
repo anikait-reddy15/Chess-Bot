@@ -76,4 +76,7 @@ void print_bitboard(U64 bitboard);
 // Function to visualize the entire board state
 void print_board();
 
+// Function to load a board position from a FEN string
+void parse_fen(std::string fen);
+
 #endif
