@@ -16,6 +16,11 @@ U64 bitboards[12] = {
     0x0000000000000010ULL  // k (Black King)
 };
 
+// Initialize board state variables
+int side = white;
+int enpassant = -1; // -1 means no en passant square available
+int castle = 15;    // Binary 1111 represents all 4 castling rights are intact
+
 void print_bitboard(U64 bitboard) {
     std::cout << "\n";
     for (int rank = 0; rank < 8; rank++) {
@@ -64,4 +69,9 @@ void print_board() {
     }
     // Print file letters at the bottom
     std::cout << "\n   a b c d e f g h\n\n";
+    
+    // Print current state info below the board
+    std::cout << "   Side to move: " << (side == white ? "White" : "Black") << "\n";
+    std::cout << "   En Passant: " << (enpassant != -1 ? std::to_string(enpassant) : "None") << "\n";
+    std::cout << "   Castling Rights: " << castle << "\n\n";
 }

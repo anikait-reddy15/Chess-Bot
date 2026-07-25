@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <string>
 
 // Define U64 as a standard 64-bit unsigned integer
 typedef uint64_t U64;
@@ -22,13 +23,41 @@ enum {
 // Piece encoding
 enum { P, N, B, R, Q, K, p, n, b, r, q, k };
 
+// Side to move encoding
+enum { white, black };
+
 // ASCII characters for pieces (matches the enum order)
 const char ascii_pieces[] = "PNBRQKpnbrqk";
 
 // Global array to hold bitboards for all 12 piece types
 extern U64 bitboards[12];
 
+// Board state variables
+extern int side;
+extern int enpassant;
+extern int castle;
+
 // Inline functions for fast bitwise operations
+
+// Counts how many bits (pieces) are on a bitboard
+inline int count_bits(U64 bitboard) {
+    int count = 0;
+    while (bitboard) {
+        count++;
+        bitboard &= bitboard - 1; // clear the LSB
+    }
+    return count;
+}
+
+// Extracts the square index of the Least Significant Bit
+inline int get_lsb_index(U64 bitboard) {
+    if (bitboard) {
+        // ~ (bitboard - 1) is the Two's Complement equivalent to -bitboard
+        return count_bits((bitboard & ~(bitboard - 1)) - 1);
+    }
+    return -1;
+}
+
 inline void set_bit(U64 &bitboard, int square) {
     bitboard |= (1ULL << square);
 }
@@ -39,25 +68,6 @@ inline int get_bit(U64 bitboard, int square) {
 
 inline void pop_bit(U64 &bitboard, int square) {
     bitboard &= ~(1ULL << square);
-}
-
-// Brian Kernighan's Algorithm to count the number of 1s on a bitboard
-inline int count_bits(U64 bitboard) {
-    int count = 0;
-    while (bitboard) {
-        count++;
-        bitboard &= bitboard - 1; // Resets the least significant 1-bit
-    }
-    return count;
-}
-
-// Extract the index of the Least Significant 1-Bit
-inline int get_lsb_index(U64 bitboard) {
-    if (bitboard) {
-        // Fix for MSVC Warning C4146: using bitwise inversion instead of unary minus
-        return count_bits((bitboard & ~(bitboard - 1)) - 1);
-    }
-    return -1;
 }
 
 // Function to visualize a specific bitboard
