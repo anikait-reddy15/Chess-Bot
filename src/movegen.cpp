@@ -54,21 +54,26 @@ U64 get_bishop_attacks(int square, U64 block) {
     U64 attacks = 0ULL;
     int r = square / 8;
     int f = square % 8;
+
+    // Up-Right (Rank decreases, File increases)
     for (int i = r - 1, j = f + 1; i >= 0 && j <= 7; i--, j++) {
         U64 sq = 1ULL << (i * 8 + j);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Up-Left (Rank decreases, File decreases)
     for (int i = r - 1, j = f - 1; i >= 0 && j >= 0; i--, j--) {
         U64 sq = 1ULL << (i * 8 + j);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Down-Right (Rank increases, File increases)
     for (int i = r + 1, j = f + 1; i <= 7 && j <= 7; i++, j++) {
         U64 sq = 1ULL << (i * 8 + j);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Down-Left (Rank increases, File decreases)
     for (int i = r + 1, j = f - 1; i <= 7 && j >= 0; i++, j--) {
         U64 sq = 1ULL << (i * 8 + j);
         attacks |= sq;
@@ -81,27 +86,61 @@ U64 get_rook_attacks(int square, U64 block) {
     U64 attacks = 0ULL;
     int r = square / 8;
     int f = square % 8;
+
+    // Up (Rank decreases)
     for (int i = r - 1; i >= 0; i--) {
         U64 sq = 1ULL << (i * 8 + f);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Down (Rank increases)
     for (int i = r + 1; i <= 7; i++) {
         U64 sq = 1ULL << (i * 8 + f);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Left (File decreases)
     for (int i = f - 1; i >= 0; i--) {
         U64 sq = 1ULL << (r * 8 + i);
         attacks |= sq;
         if (sq & block) break;
     }
+    // Right (File increases)
     for (int i = f + 1; i <= 7; i++) {
         U64 sq = 1ULL << (r * 8 + i);
         attacks |= sq;
         if (sq & block) break;
     }
     return attacks;
+}
+
+// Is the given 'square' attacked by the given 'side'?
+int is_square_attacked(int square, int side) {
+    // 1. Attacked by pawns
+    // If checking if White attacks, we look from the perspective of a Black pawn on that square, and vice versa.
+    if ((side == white) && (pawn_attacks[black][square] & bitboards[P])) return 1;
+    if ((side == black) && (pawn_attacks[white][square] & bitboards[p])) return 1;
+
+    // 2. Attacked by knights
+    if (knight_attacks[square] & ((side == white) ? bitboards[N] : bitboards[n])) return 1;
+
+    // 3. Attacked by kings (useful for preventing Kings from walking next to each other)
+    if (king_attacks[square] & ((side == white) ? bitboards[K] : bitboards[k])) return 1;
+
+    // Build full occupancy to calculate sliding rays
+    U64 occupancy = 0ULL;
+    for (int i = P; i <= k; i++) occupancy |= bitboards[i];
+    
+    // 4. Attacked by bishops or queens
+    U64 bishop_queen = (side == white) ? (bitboards[B] | bitboards[Q]) : (bitboards[b] | bitboards[q]);
+    if (get_bishop_attacks(square, occupancy) & bishop_queen) return 1;
+
+    // 5. Attacked by rooks or queens
+    U64 rook_queen = (side == white) ? (bitboards[R] | bitboards[Q]) : (bitboards[r] | bitboards[q]);
+    if (get_rook_attacks(square, occupancy) & rook_queen) return 1;
+
+    // If all checks fail, the square is perfectly safe
+    return 0; 
 }
 
 void init_leapers() {
@@ -133,7 +172,9 @@ void generate_moves(MoveList &move_list, int side) {
     // Total occupancy determines what squares are physically blocked
     U64 occupancy = friendly_occupancy | enemy_occupancy;
 
+    // ----------------------------------------------------
     // 1. Generate Knight Moves
+    // ----------------------------------------------------
     U64 knights = bitboards[piece_n];
     while (knights) {
         int source_square = get_lsb_index(knights);
@@ -149,7 +190,9 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(knights, source_square);
     }
 
+    // ----------------------------------------------------
     // 2. Generate King Moves
+    // ----------------------------------------------------
     U64 kings = bitboards[piece_k];
     while (kings) {
         int source_square = get_lsb_index(kings);
@@ -164,7 +207,9 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(kings, source_square);
     }
 
+    // ----------------------------------------------------
     // 3. Generate Pawn Moves
+    // ----------------------------------------------------
     U64 pawns = bitboards[piece_p];
     while (pawns) {
         int source_square = get_lsb_index(pawns);
@@ -249,7 +294,9 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(pawns, source_square);
     }
 
-    // 4. Generate Bishop Moves-
+    // ----------------------------------------------------
+    // 4. Generate Bishop Moves
+    // ----------------------------------------------------
     int piece_b = (side == white) ? B : b;
     U64 bishops = bitboards[piece_b];
     while (bishops) {
@@ -267,7 +314,9 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(bishops, source_square);
     }
 
+    // ----------------------------------------------------
     // 5. Generate Rook Moves
+    // ----------------------------------------------------
     int piece_r = (side == white) ? R : r;
     U64 rooks = bitboards[piece_r];
     while (rooks) {
@@ -284,7 +333,9 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(rooks, source_square);
     }
 
+    // ----------------------------------------------------
     // 6. Generate Queen Moves
+    // ----------------------------------------------------
     int piece_q = (side == white) ? Q : q;
     U64 queens = bitboards[piece_q];
     while (queens) {

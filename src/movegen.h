@@ -29,6 +29,9 @@ U64 mask_pawn_attacks(int side, int square);
 U64 get_bishop_attacks(int square, U64 block);
 U64 get_rook_attacks(int square, U64 block);
 
+// Function to check if a specific square is attacked by a given side
+int is_square_attacked(int square, int side);
+
 // Initialization function to pre-calculate all static attacks
 void init_leapers();
 
