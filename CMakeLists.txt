@@ -12,4 +12,5 @@ add_executable(engine
     src/search.cpp
     src/uci.cpp
     src/zobrist.cpp
+    src/tt.cpp
 )

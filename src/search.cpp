@@ -2,10 +2,10 @@
 #include "bitboard.h"
 #include "movegen.h"
 #include "evaluate.h"
+#include "tt.h"
 #include <iostream>
 #include <chrono>
 
-// Time management variables
 bool abort_search = false;
 long long allocated_time = -1;
 std::chrono::time_point<std::chrono::steady_clock> start_time;
@@ -13,20 +13,22 @@ std::chrono::time_point<std::chrono::steady_clock> start_time;
 int search_nodes = 0;
 int best_move_found = 0;
 
-// Helper function to get elapsed time
 long long get_time_ms() {
     auto now = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
 }
 
-// Check time limit
 void check_time() {
     if (allocated_time > 0 && get_time_ms() >= allocated_time) {
         abort_search = true;
     }
 }
 
-int score_move(int move) {
+// Updated: Now accepts the hash_move from the TT
+int score_move(int move, int hash_move) {
+    // If this move is the best move from a previous search, prioritize it above ALL else!
+    if (move == hash_move) return 30000;
+
     int score = 0;
     int promoted = GET_PROMOTED(move);
     if (promoted) score += 10000 + piece_weights[promoted]; 
@@ -47,9 +49,10 @@ int score_move(int move) {
     return score;
 }
 
-void sort_moves(MoveList &move_list) {
+// Updated: Passes the hash_move down to the scorer
+void sort_moves(MoveList &move_list, int hash_move) {
     int scores[256];
-    for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i]);
+    for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i], hash_move);
     for (int i = 0; i < move_list.count; i++) {
         int max_idx = i;
         for (int j = i + 1; j < move_list.count; j++) {
@@ -75,7 +78,7 @@ int quiescence(int alpha, int beta) {
     
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list);
+    sort_moves(move_list, 0); // No hash move in q-search
     
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
@@ -86,6 +89,7 @@ int quiescence(int alpha, int beta) {
         int side_copy = side;
         int enpassant_copy = enpassant;
         int castle_copy = castle;
+        U64 hash_key_copy = hash_key;
         
         if (make_move(move) == 0) continue;
         int score = -quiescence(-beta, -alpha);
@@ -94,6 +98,7 @@ int quiescence(int alpha, int beta) {
         side = side_copy;
         enpassant = enpassant_copy;
         castle = castle_copy;
+        hash_key = hash_key_copy;
         
         if (abort_search) return 0;
         if (score >= beta) return beta;
@@ -106,21 +111,33 @@ int negamax(int alpha, int beta, int depth) {
     if ((search_nodes & 2047) == 0) check_time();
     if (abort_search) return 0;
 
+    // 1. Probe the Transposition Table!
+    int hash_move = 0;
+    int tt_score = read_tt(alpha, beta, depth, hash_move);
+    
+    // If we have a valid cutoff, instantly return it and save thousands of nodes!
+    if (tt_score != NO_HASH_ENTRY) return tt_score;
+
     if (depth == 0) return quiescence(alpha, beta);
     search_nodes++;
 
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list);
+    sort_moves(move_list, hash_move); // Feed the TT move into the sorter!
+
     int legal_moves = 0;
+    int alpha_orig = alpha; // Save the original alpha to determine our flag type later
+    int best_move_this_node = 0;
 
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
+        
         U64 bitboards_copy[12];
         for (int b = 0; b < 12; b++) bitboards_copy[b] = bitboards[b];
         int side_copy = side;
         int enpassant_copy = enpassant;
         int castle_copy = castle;
+        U64 hash_key_copy = hash_key;
 
         if (make_move(move) == 0) continue;
         legal_moves++;
@@ -130,12 +147,18 @@ int negamax(int alpha, int beta, int depth) {
         side = side_copy;
         enpassant = enpassant_copy;
         castle = castle_copy;
+        hash_key = hash_key_copy;
 
         if (abort_search) return 0;
-        if (score >= beta) return beta;
+        
+        if (score >= beta) {
+            // Beta Cutoff (Fail-high). We write to TT and prune the branch.
+            write_tt(depth, beta, HASH_BETA, move);
+            return beta;
+        }
         if (score > alpha) {
             alpha = score;
-            if (depth == search_nodes) {} // Avoid unused variable warnings, best move is tracked in root
+            best_move_this_node = move; // Track the best move so we can memorize it
         }
     }
 
@@ -144,6 +167,11 @@ int negamax(int alpha, int beta, int depth) {
         if (is_square_attacked(king_square, side ^ 1)) return -49000 + (100 - depth);
         else return 0;
     }
+
+    // 2. Write to the Transposition Table!
+    int flag = (alpha > alpha_orig) ? HASH_EXACT : HASH_ALPHA;
+    write_tt(depth, alpha, flag, best_move_this_node);
+    
     return alpha;
 }
 
@@ -156,7 +184,11 @@ void search_position(int max_depth) {
         
         MoveList move_list;
         generate_moves(move_list, side);
-        sort_moves(move_list);
+        
+        // Grab the best move from the previous iteration to sort the root!
+        int hash_move = 0;
+        read_tt(-50000, 50000, current_depth, hash_move);
+        sort_moves(move_list, hash_move);
 
         int alpha = -50000;
         int beta = 50000;
@@ -169,6 +201,7 @@ void search_position(int max_depth) {
             int side_copy = side;
             int enpassant_copy = enpassant;
             int castle_copy = castle;
+            U64 hash_key_copy = hash_key;
 
             if (make_move(move) == 0) continue; 
             int score = -negamax(-beta, -alpha, current_depth - 1);
@@ -177,8 +210,8 @@ void search_position(int max_depth) {
             side = side_copy;
             enpassant = enpassant_copy;
             castle = castle_copy;
+            hash_key = hash_key_copy;
 
-            // If time ran out during this move, throw away the incomplete results
             if (abort_search) break;
 
             if (score > alpha) {
@@ -187,11 +220,8 @@ void search_position(int max_depth) {
             }
         }
         
-        if (abort_search) {
-            break; // Stop going deeper
-        }
+        if (abort_search) break; 
         
-        // Save the completed depth's best move
         if (best_move_found != 0) {
             best_move_overall = best_move_found;
         }

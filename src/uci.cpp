@@ -2,50 +2,44 @@
 #include "bitboard.h"
 #include "movegen.h"
 #include "search.h"
+#include "tt.h"
 #include <iostream>
 #include <sstream>
-#include <cstdio> // Include cstdio for setvbuf
+#include <string>
+#include <cstdio>
 
 int parse_move(std::string move_string) {
-    // 1. Generate all pseudo-legal moves for the current position
     MoveList move_list;
     generate_moves(move_list, side);
 
-    // 2. Parse source and target squares from the string
     int source_file = move_string[0] - 'a';
     int source_rank = 8 - (move_string[1] - '0');
     int target_file = move_string[2] - 'a';
     int target_rank = 8 - (move_string[3] - '0');
     
-    int source_square = source_rank * 8 + source_file;
-    int target_square = target_rank * 8 + target_file;
+    int source = source_rank * 8 + source_file;
+    int target = target_rank * 8 + target_file;
 
-    // 3. Search our move list for a match
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
-        
-        if (GET_SOURCE(move) == source_square && GET_TARGET(move) == target_square) {
-            int promoted = GET_PROMOTED(move);
-            
-            // If it's a promotion move, ensure the promoted piece matches the string (e.g., "e7e8q")
-            if (promoted) {
-                if ((promoted == Q || promoted == q) && move_string[4] == 'q') return move;
-                if ((promoted == R || promoted == r) && move_string[4] == 'r') return move;
-                if ((promoted == B || promoted == b) && move_string[4] == 'b') return move;
-                if ((promoted == N || promoted == n) && move_string[4] == 'n') return move;
-                continue; // Wrong promotion piece, keep looking
+        if (source == GET_SOURCE(move) && target == GET_TARGET(move)) {
+            int promoted_piece = GET_PROMOTED(move);
+            if (promoted_piece) {
+                // Ensure promotion piece matches algebraic notation
+                if ((promoted_piece == Q || promoted_piece == q) && move_string[4] == 'q') return move;
+                if ((promoted_piece == R || promoted_piece == r) && move_string[4] == 'r') return move;
+                if ((promoted_piece == B || promoted_piece == b) && move_string[4] == 'b') return move;
+                if ((promoted_piece == N || promoted_piece == n) && move_string[4] == 'n') return move;
+                continue; // It's a promotion move but doesn't match the requested piece
             }
-            
-            // Return the full 32-bit integer!
-            return move;
+            return move; // Legal match found
         }
     }
-    
-    return 0; // Move not found / illegal
+    return 0; // Invalid move
 }
 
 void uci_loop() {
-    // Disable buffering for instant GUI communication
+    // Disable buffering for instant communication with the GUI
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -53,9 +47,9 @@ void uci_loop() {
     std::cout << "Project A Engine - UCI Mode Started\n";
 
     while (std::getline(std::cin, line)) {
-        std::istringstream is(line);
+        std::istringstream iss(line);
         std::string token;
-        is >> token;
+        iss >> token;
 
         if (token == "quit") {
             break;
@@ -69,63 +63,52 @@ void uci_loop() {
             std::cout << "readyok\n";
         } 
         else if (token == "ucinewgame") {
+            clear_tt(); // Wipe memory for the new game
             parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         } 
         else if (token == "position") {
-            std::string position_type;
-            is >> position_type;
-            
-            if (position_type == "startpos") {
+            iss >> token;
+            if (token == "startpos") {
                 parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                is >> token; // Consume the "moves" token if it exists
-            } else if (position_type == "fen") {
-                std::string fen = "";
-                for (int i = 0; i < 6; i++) {
-                    is >> token;
+                iss >> token; // Read "moves" if present
+            } else if (token == "fen") {
+                std::string fen;
+                while (iss >> token && token != "moves") {
                     fen += token + " ";
                 }
                 parse_fen(fen);
-                is >> token; // Consume the "moves" token
             }
             
-            // Play all moves sent by the GUI on our internal board
-            while (is >> token) {
-                int parsed_move = parse_move(token);
-                if (parsed_move) {
-                    make_move(parsed_move);
-                }
+            // Loop through and play all moves given by the GUI
+            while (iss >> token) {
+                int move = parse_move(token);
+                if (move == 0) break;
+                make_move(move);
             }
         } 
         else if (token == "go") {
-            int depth = -1;
-            int time_remaining = -1;
-            allocated_time = -1;
-            abort_search = false;
-
-            std::string arg;
-            while (is >> arg) {
-                if (arg == "depth") {
-                    is >> depth;
-                } else if (arg == "wtime" && side == white) {
-                    is >> time_remaining;
-                } else if (arg == "btime" && side == black) {
-                    is >> time_remaining;
-                } else if (arg == "movetime") {
-                    is >> allocated_time;
+            int depth = 5; // Default depth if not specified
+            int wtime = -1, btime = -1;
+            
+            while (iss >> token) {
+                if (token == "depth") {
+                    iss >> depth;
+                } else if (token == "wtime") {
+                    iss >> wtime;
+                } else if (token == "btime") {
+                    iss >> btime;
                 }
             }
-
-            // If the GUI sent time remaining (e.g. wtime 60000), allocate ~1/30th of it for this move
-            if (time_remaining != -1 && allocated_time == -1) {
-                allocated_time = time_remaining / 30;
+            
+            allocated_time = -1; // Reset time limit
+            
+            // Allocate a fraction of remaining time (~30 moves) if playing a timed game
+            if (wtime != -1 && btime != -1) {
+                int time_left = (side == white) ? wtime : btime;
+                allocated_time = time_left / 30; 
             }
-
-            // If no depth was provided, search extremely deep (we will rely on the clock to stop us)
-            if (depth == -1) {
-                depth = 64; 
-            }
-
-            // Start the clock and trigger the search!
+            
+            abort_search = false;
             start_time = std::chrono::steady_clock::now();
             search_position(depth);
         }
