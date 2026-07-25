@@ -2,30 +2,27 @@
 #include "bitboard.h"
 #include "movegen.h"
 #include "move.h"
-#include "movelist.h"
 
 int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers();
     
-    std::cout << "\n--- Square Attack Detection Test ---\n";
+    std::cout << "\n--- Make Move Test ---\n";
     
-    // Drop a Black Knight right next to the White King
-    set_bit(bitboards[n], f3);
-    
-    std::cout << "Board after placing a Black Knight on f3:\n";
+    std::cout << "Board before move:\n";
     print_board();
     
-    // Check if the e1 square (where the White King starts) is attacked by Black
-    if (is_square_attacked(e1, black)) {
-        std::cout << "ALERT: The White King on e1 is in Check by Black!\n";
-    } else {
-        std::cout << "SAFE: e1 is not attacked.\n";
-    }
+    // Encode a double pawn push: White pawn from e2 to e4
+    // ENCODE_MOVE(source, target, piece, promoted, capture, double_push, enpassant, castling)
+    int test_move = ENCODE_MOVE(e2, e4, P, 0, 0, 1, 0, 0);
     
-    // Check if d4 is attacked by White (it should be, by the starting c2 and e2 pawns)
-    if (is_square_attacked(d4, white)) {
-        std::cout << "CONFIRMED: The d4 square is heavily guarded by White pawns.\n";
+    std::cout << "Attempting to make move (e2 to e4)...\n";
+    
+    if (make_move(test_move)) {
+        std::cout << "Move was LEGAL. Board updated.\n";
+        print_board();
+    } else {
+        std::cout << "Move was ILLEGAL. Board reverted.\n";
     }
     
     return 0;
