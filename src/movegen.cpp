@@ -330,6 +330,45 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(pawns, source);
     }
 
+    // Generate Castling Moves
+    if (side == white) {
+        // Kingside castling
+        if (castle & 1) {
+            // Ensure squares between king and rook are empty
+            if (!get_bit(total_occupancy, f1) && !get_bit(total_occupancy, g1)) {
+                // Ensure king is not in check, and does not pass through or land in check
+                if (!is_square_attacked(e1, black) && !is_square_attacked(f1, black) && !is_square_attacked(g1, black)) {
+                    move_list.add_move(ENCODE_MOVE(e1, g1, K, 0, 0, 0, 0, 1));
+                }
+            }
+        }
+        // Queenside castling
+        if (castle & 2) {
+            if (!get_bit(total_occupancy, d1) && !get_bit(total_occupancy, c1) && !get_bit(total_occupancy, b1)) {
+                if (!is_square_attacked(e1, black) && !is_square_attacked(d1, black) && !is_square_attacked(c1, black)) {
+                    move_list.add_move(ENCODE_MOVE(e1, c1, K, 0, 0, 0, 0, 1));
+                }
+            }
+        }
+    } else {
+        // Kingside castling
+        if (castle & 4) {
+            if (!get_bit(total_occupancy, f8) && !get_bit(total_occupancy, g8)) {
+                if (!is_square_attacked(e8, white) && !is_square_attacked(f8, white) && !is_square_attacked(g8, white)) {
+                    move_list.add_move(ENCODE_MOVE(e8, g8, k, 0, 0, 0, 0, 1));
+                }
+            }
+        }
+        // Queenside castling
+        if (castle & 8) {
+            if (!get_bit(total_occupancy, d8) && !get_bit(total_occupancy, c8) && !get_bit(total_occupancy, b8)) {
+                if (!is_square_attacked(e8, white) && !is_square_attacked(d8, white) && !is_square_attacked(c8, white)) {
+                    move_list.add_move(ENCODE_MOVE(e8, c8, k, 0, 0, 0, 0, 1));
+                }
+            }
+        }
+    }
+
     // Generate Moves for Knights, Bishops, Rooks, Queens, and Kings
     int start_piece = (side == white) ? N : n;
     int end_piece = (side == white) ? K : k;
