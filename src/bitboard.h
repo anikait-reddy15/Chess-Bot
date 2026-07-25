@@ -37,22 +37,21 @@ extern int side;
 extern int enpassant;
 extern int castle;
 
-// Inline functions for fast bitwise operations
+// The unique Zobrist hash representing the current board state
+extern U64 hash_key;
 
-// Counts how many bits (pieces) are on a bitboard
+// Inline functions for fast bitwise operations
 inline int count_bits(U64 bitboard) {
     int count = 0;
     while (bitboard) {
         count++;
-        bitboard &= bitboard - 1; // clear the LSB
+        bitboard &= bitboard - 1; 
     }
     return count;
 }
 
-// Extracts the square index of the Least Significant Bit
 inline int get_lsb_index(U64 bitboard) {
     if (bitboard) {
-        // ~ (bitboard - 1) is the Two's Complement equivalent to -bitboard
         return count_bits((bitboard & ~(bitboard - 1)) - 1);
     }
     return -1;
@@ -70,13 +69,11 @@ inline void pop_bit(U64 &bitboard, int square) {
     bitboard &= ~(1ULL << square);
 }
 
-// Function to visualize a specific bitboard
 void print_bitboard(U64 bitboard);
-
-// Function to visualize the entire board state
 void print_board();
-
-// Function to load a board position from a FEN string
 void parse_fen(std::string fen);
+
+// Generates the unique hash from the current board state
+U64 generate_hash_key();
 
 #endif

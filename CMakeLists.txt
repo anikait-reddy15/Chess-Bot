@@ -11,4 +11,5 @@ add_executable(engine
     src/movegen.cpp
     src/search.cpp
     src/uci.cpp
+    src/zobrist.cpp
 )

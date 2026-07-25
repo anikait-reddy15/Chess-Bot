@@ -3,13 +3,17 @@
 #include "movegen.h"
 #include "evaluate.h"
 #include "search.h"
-#include "uci.h" // Include our new UCI header
+#include "uci.h"
+#include "zobrist.h" // Include Zobrist initialization
 
 int main() {
-    // Initialize lookup tables before doing anything else
+    // 1. Initialize Zobrist random keys
+    init_zobrist();
+
+    // 2. Initialize lookup tables for move generation
     init_leapers(); 
     
-    // Hand control over to the UCI loop
+    // 3. Hand control over to the UCI loop
     uci_loop();
     
     return 0;

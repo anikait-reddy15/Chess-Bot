@@ -1,25 +1,47 @@
 #include "bitboard.h"
+#include "zobrist.h"
 
-// Initialize the 12 bitboards with the standard chess starting position
 U64 bitboards[12] = {
-    0x00FF000000000000ULL, // P (White Pawns)
-    0x4200000000000000ULL, // N (White Knights)
-    0x2400000000000000ULL, // B (White Bishops)
-    0x8100000000000000ULL, // R (White Rooks)
-    0x0800000000000000ULL, // Q (White Queen)
-    0x1000000000000000ULL, // K (White King)
-    0x000000000000FF00ULL, // p (Black Pawns)
-    0x0000000000000042ULL, // n (Black Knights)
-    0x0000000000000024ULL, // b (Black Bishops)
-    0x0000000000000081ULL, // r (Black Rooks)
-    0x0000000000000008ULL, // q (Black Queen)
-    0x0000000000000010ULL  // k (Black King)
+    0x00FF000000000000ULL, 0x4200000000000000ULL, 0x2400000000000000ULL, 
+    0x8100000000000000ULL, 0x0800000000000000ULL, 0x1000000000000000ULL, 
+    0x000000000000FF00ULL, 0x0000000000000042ULL, 0x0000000000000024ULL, 
+    0x0000000000000081ULL, 0x0000000000000008ULL, 0x0000000000000010ULL  
 };
 
-// Initialize board state variables
 int side = white;
-int enpassant = -1; // -1 means no en passant square available
-int castle = 15;    // Binary 1111 represents all 4 castling rights are intact
+int enpassant = -1; 
+int castle = 15;    
+U64 hash_key = 0ULL; // Initialize the hash key
+
+// Generate a unique 64-bit key by XORing the state of the board
+U64 generate_hash_key() {
+    U64 final_key = 0ULL;
+    
+    // 1. XOR the pieces
+    for (int piece = P; piece <= k; piece++) {
+        U64 bitboard = bitboards[piece];
+        while (bitboard) {
+            int square = get_lsb_index(bitboard);
+            final_key ^= piece_keys[piece][square];
+            pop_bit(bitboard, square);
+        }
+    }
+    
+    // 2. XOR the en passant square
+    if (enpassant != -1) {
+        final_key ^= enpassant_keys[enpassant];
+    }
+    
+    // 3. XOR the castling rights
+    final_key ^= castle_keys[castle];
+    
+    // 4. XOR the side to move (only if black)
+    if (side == black) {
+        final_key ^= side_key;
+    }
+    
+    return final_key;
+}
 
 void print_bitboard(U64 bitboard) {
     std::cout << "\n";
@@ -40,44 +62,28 @@ void print_board() {
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
             int square = rank * 8 + file;
+            if (!file) std::cout << 8 - rank << "  ";
             
-            // Print rank numbers on the left
-            if (!file) {
-                std::cout << 8 - rank << "  ";
-            }
-            
-            // Variable to track which piece occupies the square
             int piece = -1;
-            
-            // Loop through all 12 bitboards to see if a piece is on this square
             for (int bb_piece = P; bb_piece <= k; bb_piece++) {
                 if (get_bit(bitboards[bb_piece], square)) {
                     piece = bb_piece;
-                    break; // Found the piece, no need to check other bitboards
+                    break; 
                 }
             }
-            
-            // If piece is -1, the square is empty, print a dot
-            // Otherwise, print the corresponding ASCII character
-            if (piece == -1) {
-                std::cout << ". ";
-            } else {
-                std::cout << ascii_pieces[piece] << " ";
-            }
+            if (piece == -1) std::cout << ". ";
+            else std::cout << ascii_pieces[piece] << " ";
         }
         std::cout << "\n";
     }
-    // Print file letters at the bottom
     std::cout << "\n   a b c d e f g h\n\n";
-    
-    // Print current state info below the board
     std::cout << "   Side to move: " << (side == white ? "White" : "Black") << "\n";
     std::cout << "   En Passant: " << (enpassant != -1 ? std::to_string(enpassant) : "None") << "\n";
-    std::cout << "   Castling Rights: " << castle << "\n\n";
+    std::cout << "   Castling Rights: " << castle << "\n";
+    std::cout << "   Hash Key: " << std::hex << hash_key << std::dec << "\n\n";
 }
 
 void parse_fen(std::string fen) {
-    // Reset the board state
     for (int i = 0; i < 12; i++) bitboards[i] = 0ULL;
     side = white;
     enpassant = -1;
@@ -86,17 +92,11 @@ void parse_fen(std::string fen) {
     int square = 0;
     int i = 0;
     
-    // 1. Parse piece placement
     while (i < fen.length() && fen[i] != ' ') {
-        if (fen[i] == '/') {
-            i++;
-            continue;
-        }
-        // If it's a number, skip that many empty squares
+        if (fen[i] == '/') { i++; continue; }
         if (fen[i] >= '1' && fen[i] <= '8') {
             square += (fen[i] - '0');
         } else {
-            // It's a piece character, match it and set the bit
             int piece = -1;
             switch (fen[i]) {
                 case 'P': piece = P; break;
@@ -119,30 +119,25 @@ void parse_fen(std::string fen) {
         }
         i++;
     }
+    i++; 
     
-    i++; // Skip the space
-    
-    // 2. Parse side to move
     if (i < fen.length()) {
         side = (fen[i] == 'w') ? white : black;
-        i += 2; // Skip 'w' or 'b' and the following space
+        i += 2; 
     }
     
-    // 3. Parse castling rights
     while (i < fen.length() && fen[i] != ' ') {
         switch (fen[i]) {
-            case 'K': castle |= 1; break; // Bit 1
-            case 'Q': castle |= 2; break; // Bit 2
-            case 'k': castle |= 4; break; // Bit 3
-            case 'q': castle |= 8; break; // Bit 4
-            case '-': break; // No castling rights
+            case 'K': castle |= 1; break; 
+            case 'Q': castle |= 2; break; 
+            case 'k': castle |= 4; break; 
+            case 'q': castle |= 8; break; 
+            case '-': break; 
         }
         i++;
     }
+    i++; 
     
-    i++; // Skip the space
-    
-    // 4. Parse en passant square
     if (i < fen.length() && fen[i] != '-') {
         int file = fen[i] - 'a';
         int rank = 8 - (fen[i+1] - '0');
@@ -150,4 +145,7 @@ void parse_fen(std::string fen) {
     } else {
         enpassant = -1;
     }
+
+    // After parsing the FEN, immediately generate the hash key
+    hash_key = generate_hash_key();
 }
