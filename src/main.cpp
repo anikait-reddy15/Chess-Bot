@@ -3,6 +3,7 @@
 #include "bitboard.h"
 #include "movegen.h"
 #include "move.h"
+#include "evaluate.h"
 
 // Global node counter to track total positions evaluated
 long long nodes = 0;
@@ -110,16 +111,23 @@ int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers(); // Initialize lookup tables
     
-    // Set up the notoriously tricky "Kiwipete" position
-    std::string kiwipete = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-    parse_fen(kiwipete);
+    // Set up a custom position where White is up a full Queen (+900)
+    std::string fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    parse_fen(fen);
     
-    std::cout << "\nPosition: Kiwipete\n";
+    std::cout << "\nPosition: White is up a Queen\n";
     print_board();
     
-    // Run Perft at Depth 4. 
-    // The exact expected answer for Kiwipete Depth 4 is 4,085,603 nodes.
-    perft_test(4);
+    // Run Perft at Depth 4 (Commented out to save time during evaluation tests)
+    // perft_test(4);
+    
+    int score = evaluate_position();
+    std::cout << "\nStatic Evaluation (from " << (side == white ? "White" : "Black") << "'s perspective): " << score << " centipawns\n";
+    
+    // Switch sides to prove Negamax perspective works
+    side = black;
+    score = evaluate_position();
+    std::cout << "Static Evaluation (from " << (side == white ? "White" : "Black") << "'s perspective): " << score << " centipawns\n";
     
     return 0;
 }

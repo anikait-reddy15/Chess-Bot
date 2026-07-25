@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(engine 
     src/main.cpp
     src/bitboard.cpp
-    src/evaluation.cpp
+    src/evaluate.cpp
     src/movegen.cpp
     src/search.cpp
     src/uci.cpp
