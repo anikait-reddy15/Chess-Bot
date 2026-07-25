@@ -4,6 +4,7 @@
 #include "search.h"
 #include <iostream>
 #include <sstream>
+#include <cstdio> // Include cstdio for setvbuf
 
 int parse_move(std::string move_string) {
     // 1. Generate all pseudo-legal moves for the current position
@@ -44,9 +45,9 @@ int parse_move(std::string move_string) {
 }
 
 void uci_loop() {
-    // Set standard input/output buffering for smooth GUI communication
-    setbuf(stdin, NULL);
-    setbuf(stdout, NULL);
+    // Disable buffering for instant GUI communication
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
 
     std::string line;
     std::cout << "Project A Engine - UCI Mode Started\n";
@@ -96,14 +97,36 @@ void uci_loop() {
             }
         } 
         else if (token == "go") {
-            int depth = 5; // Default depth if GUI doesn't specify
+            int depth = -1;
+            int time_remaining = -1;
+            allocated_time = -1;
+            abort_search = false;
+
             std::string arg;
             while (is >> arg) {
                 if (arg == "depth") {
                     is >> depth;
+                } else if (arg == "wtime" && side == white) {
+                    is >> time_remaining;
+                } else if (arg == "btime" && side == black) {
+                    is >> time_remaining;
+                } else if (arg == "movetime") {
+                    is >> allocated_time;
                 }
             }
-            // Trigger the search algorithm!
+
+            // If the GUI sent time remaining (e.g. wtime 60000), allocate ~1/30th of it for this move
+            if (time_remaining != -1 && allocated_time == -1) {
+                allocated_time = time_remaining / 30;
+            }
+
+            // If no depth was provided, search extremely deep (we will rely on the clock to stop us)
+            if (depth == -1) {
+                depth = 64; 
+            }
+
+            // Start the clock and trigger the search!
+            start_time = std::chrono::steady_clock::now();
             search_position(depth);
         }
     }

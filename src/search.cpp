@@ -3,80 +3,75 @@
 #include "movegen.h"
 #include "evaluate.h"
 #include <iostream>
+#include <chrono>
 
-// Track search statistics
+// Time management variables
+bool abort_search = false;
+long long allocated_time = -1;
+std::chrono::time_point<std::chrono::steady_clock> start_time;
+
 int search_nodes = 0;
 int best_move_found = 0;
 
-// Scores a move for MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+// Helper function to get elapsed time
+long long get_time_ms() {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+}
+
+// Check time limit
+void check_time() {
+    if (allocated_time > 0 && get_time_ms() >= allocated_time) {
+        abort_search = true;
+    }
+}
+
 int score_move(int move) {
     int score = 0;
-    
-    // 1. Promotions get a massive bonus
     int promoted = GET_PROMOTED(move);
-    if (promoted) {
-        score += 10000 + piece_weights[promoted]; 
-    }
-    
-    // 2. Captures get scored based on the pieces involved
+    if (promoted) score += 10000 + piece_weights[promoted]; 
     if (GET_CAPTURE(move)) {
         int target = GET_TARGET(move);
         int attacker = GET_PIECE(move);
         int victim = P; 
-        
         int start_piece = (side == white) ? p : P;
         int end_piece = (side == white) ? k : K;
-        
         for (int bb_piece = start_piece; bb_piece <= end_piece; bb_piece++) {
             if (get_bit(bitboards[bb_piece], target)) {
                 victim = bb_piece;
                 break;
             }
         }
-        
         score += 10000 + piece_weights[victim] - piece_weights[attacker];
     }
-    
     return score;
 }
 
-// Sorts the move list
 void sort_moves(MoveList &move_list) {
     int scores[256];
-    for (int i = 0; i < move_list.count; i++) {
-        scores[i] = score_move(move_list.moves[i]);
-    }
-    
+    for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i]);
     for (int i = 0; i < move_list.count; i++) {
         int max_idx = i;
         for (int j = i + 1; j < move_list.count; j++) {
-            if (scores[j] > scores[max_idx]) {
-                max_idx = j;
-            }
+            if (scores[j] > scores[max_idx]) max_idx = j;
         }
-        
         int temp_score = scores[i];
         scores[i] = scores[max_idx];
         scores[max_idx] = temp_score;
-        
         int temp_move = move_list.moves[i];
         move_list.moves[i] = move_list.moves[max_idx];
         move_list.moves[max_idx] = temp_move;
     }
 }
 
-// Quiescence Search
 int quiescence(int alpha, int beta) {
+    if ((search_nodes & 2047) == 0) check_time();
+    if (abort_search) return 0;
+
     search_nodes++;
-    
     int evaluation = evaluate_position();
-    
-    if (evaluation >= beta) {
-        return beta;
-    }
-    if (evaluation > alpha) {
-        alpha = evaluation;
-    }
+    if (evaluation >= beta) return beta;
+    if (evaluation > alpha) alpha = evaluation;
     
     MoveList move_list;
     generate_moves(move_list, side);
@@ -84,7 +79,6 @@ int quiescence(int alpha, int beta) {
     
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
-        
         if (!GET_CAPTURE(move)) continue;
         
         U64 bitboards_copy[12];
@@ -94,7 +88,6 @@ int quiescence(int alpha, int beta) {
         int castle_copy = castle;
         
         if (make_move(move) == 0) continue;
-        
         int score = -quiescence(-beta, -alpha);
         
         for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
@@ -102,30 +95,27 @@ int quiescence(int alpha, int beta) {
         enpassant = enpassant_copy;
         castle = castle_copy;
         
+        if (abort_search) return 0;
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
     }
-    
     return alpha;
 }
 
-// Core Negamax Search
 int negamax(int alpha, int beta, int depth) {
-    if (depth == 0) {
-        return quiescence(alpha, beta);
-    }
+    if ((search_nodes & 2047) == 0) check_time();
+    if (abort_search) return 0;
 
+    if (depth == 0) return quiescence(alpha, beta);
     search_nodes++;
 
     MoveList move_list;
     generate_moves(move_list, side);
     sort_moves(move_list);
-
     int legal_moves = 0;
 
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
-
         U64 bitboards_copy[12];
         for (int b = 0; b < 12; b++) bitboards_copy[b] = bitboards[b];
         int side_copy = side;
@@ -133,7 +123,6 @@ int negamax(int alpha, int beta, int depth) {
         int castle_copy = castle;
 
         if (make_move(move) == 0) continue;
-
         legal_moves++;
         int score = -negamax(-beta, -alpha, depth - 1);
 
@@ -142,27 +131,25 @@ int negamax(int alpha, int beta, int depth) {
         enpassant = enpassant_copy;
         castle = castle_copy;
 
+        if (abort_search) return 0;
         if (score >= beta) return beta;
-        if (score > alpha) alpha = score;
+        if (score > alpha) {
+            alpha = score;
+            if (depth == search_nodes) {} // Avoid unused variable warnings, best move is tracked in root
+        }
     }
 
     if (legal_moves == 0) {
         int king_square = (side == white) ? get_lsb_index(bitboards[K]) : get_lsb_index(bitboards[k]);
-        if (is_square_attacked(king_square, side ^ 1)) {
-            return -49000 + (100 - depth);
-        } else {
-            return 0;
-        }
+        if (is_square_attacked(king_square, side ^ 1)) return -49000 + (100 - depth);
+        else return 0;
     }
-
     return alpha;
 }
 
-// Main Search Trigger with Iterative Deepening
 void search_position(int max_depth) {
     int best_move_overall = 0;
     
-    // Iterative Deepening Loop
     for (int current_depth = 1; current_depth <= max_depth; current_depth++) {
         search_nodes = 0;
         best_move_found = 0;
@@ -184,7 +171,6 @@ void search_position(int max_depth) {
             int castle_copy = castle;
 
             if (make_move(move) == 0) continue; 
-
             int score = -negamax(-beta, -alpha, current_depth - 1);
 
             for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
@@ -192,18 +178,24 @@ void search_position(int max_depth) {
             enpassant = enpassant_copy;
             castle = castle_copy;
 
+            // If time ran out during this move, throw away the incomplete results
+            if (abort_search) break;
+
             if (score > alpha) {
                 alpha = score;
                 best_move_found = move;
             }
         }
         
-        // Save the best move from this depth to play if we need to abort
+        if (abort_search) {
+            break; // Stop going deeper
+        }
+        
+        // Save the completed depth's best move
         if (best_move_found != 0) {
             best_move_overall = best_move_found;
         }
 
-        // Print UCI info stream for the current depth
         if (best_move_overall) {
             int source = GET_SOURCE(best_move_overall);
             int target = GET_TARGET(best_move_overall);
@@ -214,19 +206,16 @@ void search_position(int max_depth) {
             move_string += (char)('8' - (source / 8));
             move_string += (char)('a' + (target % 8));
             move_string += (char)('8' - (target / 8));
-            
             if (promoted) {
                 if (promoted == Q || promoted == q) move_string += 'q';
                 if (promoted == R || promoted == r) move_string += 'r';
                 if (promoted == B || promoted == b) move_string += 'b';
                 if (promoted == N || promoted == n) move_string += 'n';
             }
-
-            std::cout << "info depth " << current_depth << " score cp " << alpha << " nodes " << search_nodes << "\n";
+            std::cout << "info depth " << current_depth << " score cp " << alpha << " nodes " << search_nodes << " time " << get_time_ms() << "\n";
         }
     }
 
-    // Print final UCI bestmove once the target depth is fully completed
     if (best_move_overall) {
         int source = GET_SOURCE(best_move_overall);
         int target = GET_TARGET(best_move_overall);
@@ -237,14 +226,12 @@ void search_position(int max_depth) {
         move_string += (char)('8' - (source / 8));
         move_string += (char)('a' + (target % 8));
         move_string += (char)('8' - (target / 8));
-        
         if (promoted) {
             if (promoted == Q || promoted == q) move_string += 'q';
             if (promoted == R || promoted == r) move_string += 'r';
             if (promoted == B || promoted == b) move_string += 'b';
             if (promoted == N || promoted == n) move_string += 'n';
         }
-
         std::cout << "bestmove " << move_string << "\n";
     }
 }
