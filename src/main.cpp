@@ -11,12 +11,12 @@ int main() {
     // Create an empty MoveList
     MoveList move_list;
     
-    std::cout << "\nGenerating Pseudo-Legal Moves for White Knights and Kings...\n";
+    std::cout << "\nGenerating Moves for White (Starting Position)...\n";
     
-    // Generate moves for the white side based on the starting position bitboards
+    // Generate moves for the white side
     generate_moves(move_list, white);
     
-    std::cout << "Total moves generated: " << move_list.count << "\n";
+    std::cout << "Total valid moves generated: " << move_list.count << "\n\n";
     
     // Print out all generated moves to verify them
     for (int i = 0; i < move_list.count; i++) {
