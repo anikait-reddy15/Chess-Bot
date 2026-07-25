@@ -1,20 +1,27 @@
 #include <iostream>
 #include "bitboard.h"
 #include "movegen.h"
-#include "move.h" // Include our new encoding macros
+#include "move.h"
+#include "movelist.h"
 
 int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers();
     
-    // Simulate a move: White Knight (N) moves from g4 to f6, capturing an enemy piece.
-    // ENCODE_MOVE parameters: source, target, piece, promoted, capture, double_push, ep, castling
-    int test_move = ENCODE_MOVE(g4, f6, N, 0, 1, 0, 0, 0);
+    // Create an empty MoveList
+    MoveList move_list;
     
-    std::cout << "\nRaw 32-bit Integer Value of the Move: " << test_move;
+    std::cout << "\nGenerating Pseudo-Legal Moves for White Knights and Kings...\n";
     
-    // Decode and print the human-readable version
-    print_move(test_move);
+    // Generate moves for the white side based on the starting position bitboards
+    generate_moves(move_list, white);
+    
+    std::cout << "Total moves generated: " << move_list.count << "\n";
+    
+    // Print out all generated moves to verify them
+    for (int i = 0; i < move_list.count; i++) {
+        print_move(move_list.moves[i]);
+    }
     
     return 0;
 }

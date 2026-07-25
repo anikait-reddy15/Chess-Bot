@@ -2,6 +2,7 @@
 #define MOVEGEN_H
 
 #include "bitboard.h"
+#include "movelist.h" // Include the move list to pass into the generator
 
 // Constants to prevent pieces from wrapping around the board
 const U64 not_a_file = 0xFEFEFEFEFEFEFEFEULL;
@@ -19,7 +20,7 @@ extern U64 king_attacks[64];
 // Lookup tables for pawn attacks [color][square]
 extern U64 pawn_attacks[2][64];
 
-// Functions to generate attack masks for a single square (Leapers & Pawns)
+// Functions to generate attack masks for a single square
 U64 mask_knight_attacks(int square);
 U64 mask_king_attacks(int square);
 U64 mask_pawn_attacks(int side, int square);
@@ -30,5 +31,8 @@ U64 get_rook_attacks(int square, U64 block);
 
 // Initialization function to pre-calculate all static attacks
 void init_leapers();
+
+// Core move generation function
+void generate_moves(MoveList &move_list, int side);
 
 #endif

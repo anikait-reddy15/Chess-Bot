@@ -41,10 +41,29 @@ inline void pop_bit(U64 &bitboard, int square) {
     bitboard &= ~(1ULL << square);
 }
 
+// Brian Kernighan's Algorithm to count the number of 1s on a bitboard
+inline int count_bits(U64 bitboard) {
+    int count = 0;
+    while (bitboard) {
+        count++;
+        bitboard &= bitboard - 1; // Resets the least significant 1-bit
+    }
+    return count;
+}
+
+// Extract the index of the Least Significant 1-Bit
+inline int get_lsb_index(U64 bitboard) {
+    if (bitboard) {
+        // Fix for MSVC Warning C4146: using bitwise inversion instead of unary minus
+        return count_bits((bitboard & ~(bitboard - 1)) - 1);
+    }
+    return -1;
+}
+
 // Function to visualize a specific bitboard
 void print_bitboard(U64 bitboard);
 
 // Function to visualize the entire board state
 void print_board();
 
-#endif  
+#endif
