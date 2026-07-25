@@ -105,16 +105,27 @@ void search_position(int depth) {
         }
     }
 
-    // Output results
-    std::cout << "\n--- Search Results ---\n";
-    std::cout << "Depth: " << depth << "\n";
-    std::cout << "Nodes evaluated: " << search_nodes << "\n";
-    std::cout << "Evaluation: " << alpha << " centipawns\n";
-    
+    // Convert the best 32-bit integer move back to an algebraic string for the GUI
+    std::string best_move_str = "";
     if (best_move_found) {
-        std::cout << "Engine recommends: ";
-        print_move(best_move_found);
-    } else {
-        std::cout << "Engine recommends: None (Checkmate or Stalemate detected)\n";
+        int src = GET_SOURCE(best_move_found);
+        int tgt = GET_TARGET(best_move_found);
+        int prom = GET_PROMOTED(best_move_found);
+        
+        best_move_str += (char)('a' + (src % 8));
+        best_move_str += (char)('8' - (src / 8));
+        best_move_str += (char)('a' + (tgt % 8));
+        best_move_str += (char)('8' - (tgt / 8));
+        
+        if (prom) {
+            if (prom == Q || prom == q) best_move_str += 'q';
+            else if (prom == R || prom == r) best_move_str += 'r';
+            else if (prom == B || prom == b) best_move_str += 'b';
+            else if (prom == N || prom == n) best_move_str += 'n';
+        }
     }
+
+    // Output strictly in UCI format
+    std::cout << "info depth " << depth << " score cp " << alpha << " nodes " << search_nodes << "\n";
+    std::cout << "bestmove " << (best_move_found ? best_move_str : "(none)") << "\n";
 }
