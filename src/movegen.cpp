@@ -133,9 +133,7 @@ void generate_moves(MoveList &move_list, int side) {
     // Total occupancy determines what squares are physically blocked
     U64 occupancy = friendly_occupancy | enemy_occupancy;
 
-    // ----------------------------------------------------
     // 1. Generate Knight Moves
-    // ----------------------------------------------------
     U64 knights = bitboards[piece_n];
     while (knights) {
         int source_square = get_lsb_index(knights);
@@ -151,9 +149,7 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(knights, source_square);
     }
 
-    // ----------------------------------------------------
     // 2. Generate King Moves
-    // ----------------------------------------------------
     U64 kings = bitboards[piece_k];
     while (kings) {
         int source_square = get_lsb_index(kings);
@@ -168,9 +164,7 @@ void generate_moves(MoveList &move_list, int side) {
         pop_bit(kings, source_square);
     }
 
-    // ----------------------------------------------------
     // 3. Generate Pawn Moves
-    // ----------------------------------------------------
     U64 pawns = bitboards[piece_p];
     while (pawns) {
         int source_square = get_lsb_index(pawns);
@@ -253,5 +247,58 @@ void generate_moves(MoveList &move_list, int side) {
         }
         
         pop_bit(pawns, source_square);
+    }
+
+    // 4. Generate Bishop Moves-
+    int piece_b = (side == white) ? B : b;
+    U64 bishops = bitboards[piece_b];
+    while (bishops) {
+        int source_square = get_lsb_index(bishops);
+        
+        // Use our dynamic ray casting, then remove friendly pieces from the targets
+        U64 attacks = get_bishop_attacks(source_square, occupancy) & ~friendly_occupancy; 
+
+        while (attacks) {
+            int target_square = get_lsb_index(attacks);
+            int capture = get_bit(enemy_occupancy, target_square) ? 1 : 0;
+            move_list.add_move(ENCODE_MOVE(source_square, target_square, piece_b, 0, capture, 0, 0, 0));
+            pop_bit(attacks, target_square);
+        }
+        pop_bit(bishops, source_square);
+    }
+
+    // 5. Generate Rook Moves
+    int piece_r = (side == white) ? R : r;
+    U64 rooks = bitboards[piece_r];
+    while (rooks) {
+        int source_square = get_lsb_index(rooks);
+        
+        U64 attacks = get_rook_attacks(source_square, occupancy) & ~friendly_occupancy; 
+
+        while (attacks) {
+            int target_square = get_lsb_index(attacks);
+            int capture = get_bit(enemy_occupancy, target_square) ? 1 : 0;
+            move_list.add_move(ENCODE_MOVE(source_square, target_square, piece_r, 0, capture, 0, 0, 0));
+            pop_bit(attacks, target_square);
+        }
+        pop_bit(rooks, source_square);
+    }
+
+    // 6. Generate Queen Moves
+    int piece_q = (side == white) ? Q : q;
+    U64 queens = bitboards[piece_q];
+    while (queens) {
+        int source_square = get_lsb_index(queens);
+        
+        // Queen attacks are simply a Rook attack and a Bishop attack combined (OR'd)
+        U64 attacks = (get_rook_attacks(source_square, occupancy) | get_bishop_attacks(source_square, occupancy)) & ~friendly_occupancy; 
+
+        while (attacks) {
+            int target_square = get_lsb_index(attacks);
+            int capture = get_bit(enemy_occupancy, target_square) ? 1 : 0;
+            move_list.add_move(ENCODE_MOVE(source_square, target_square, piece_q, 0, capture, 0, 0, 0));
+            pop_bit(attacks, target_square);
+        }
+        pop_bit(queens, source_square);
     }
 }

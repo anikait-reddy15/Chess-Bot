@@ -8,17 +8,19 @@ int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers();
     
+    // Simulate moving the e2 and d2 pawns by manually deleting them from the board
+    // This will open up diagonals and files for the Bishops and Queen
+    pop_bit(bitboards[P], e2);
+    pop_bit(bitboards[P], d2);
+    
+    std::cout << "\nBoard after deleting e2 and d2 pawns:\n";
+    print_board();
+    
     // Create an empty MoveList
     MoveList move_list;
     
-    std::cout << "\nGenerating Moves for White (Starting Position)...\n";
-    
-    // Generate moves for the white side
+    std::cout << "\nGenerating Moves for White (Open Center)...\n";
     generate_moves(move_list, white);
-    
-    std::cout << "Total valid moves generated: " << move_list.count << "\n\n";
-    
-    // Print out all generated moves to verify them
     for (int i = 0; i < move_list.count; i++) {
         print_move(move_list.moves[i]);
     }
