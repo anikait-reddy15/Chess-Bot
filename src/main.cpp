@@ -112,16 +112,23 @@ int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers(); // Initialize lookup tables
     
-    // Set up a classic Mate in 1 puzzle (White to move)
-    // The Black King is trapped on a8. White Queen is on h7. White King is on a6.
-    std::string fen = "k7/7Q/K7/8/8/8/8/8 w - - 0 1";
+    // Set up a Positional Puzzle
+    // Material is completely even (2 Knights vs 2 Knights).
+    // But White's Knights are dominant in the center. Black's are in the corners.
+    std::string fen = "n6n/8/8/8/3NN3/8/8/K6k w - - 0 1";
     parse_fen(fen);
     
-    std::cout << "\nPosition: Mate in 1 for White\n";
+    std::cout << "\nPosition: Centralized Knights vs Cornered Knights\n";
     print_board();
     
-    // Search the position to depth 4
-    std::cout << "Thinking...\n";
+    std::cout << "Evaluating Positional Advantage...\n";
+    
+    // Check the raw static evaluation
+    int current_eval = evaluate_position();
+    std::cout << "Static Evaluation: " << current_eval << " centipawns\n";
+    
+    // Let the engine search for the best move
+    std::cout << "\nThinking...\n";
     search_position(4);
     
     return 0;
