@@ -4,4 +4,7 @@
 // Core evaluation function
 int evaluate_position();
 
+// Export piece weights for move ordering
+extern const int piece_weights[];
+
 #endif
