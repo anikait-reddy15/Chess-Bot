@@ -4,6 +4,7 @@
 #include "movegen.h"
 #include "move.h"
 #include "evaluate.h"
+#include "search.h" // Include our new search header
 
 // Global node counter to track total positions evaluated
 long long nodes = 0;
@@ -111,23 +112,17 @@ int main() {
     std::cout << "Project A Engine Initialized\n";
     init_leapers(); // Initialize lookup tables
     
-    // Set up a custom position where White is up a full Queen (+900)
-    std::string fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    // Set up a classic Mate in 1 puzzle (White to move)
+    // The Black King is trapped on a8. White Queen is on h7. White King is on a6.
+    std::string fen = "k7/7Q/K7/8/8/8/8/8 w - - 0 1";
     parse_fen(fen);
     
-    std::cout << "\nPosition: White is up a Queen\n";
+    std::cout << "\nPosition: Mate in 1 for White\n";
     print_board();
     
-    // Run Perft at Depth 4 (Commented out to save time during evaluation tests)
-    // perft_test(4);
-    
-    int score = evaluate_position();
-    std::cout << "\nStatic Evaluation (from " << (side == white ? "White" : "Black") << "'s perspective): " << score << " centipawns\n";
-    
-    // Switch sides to prove Negamax perspective works
-    side = black;
-    score = evaluate_position();
-    std::cout << "Static Evaluation (from " << (side == white ? "White" : "Black") << "'s perspective): " << score << " centipawns\n";
+    // Search the position to depth 4
+    std::cout << "Thinking...\n";
+    search_position(4);
     
     return 0;
 }
