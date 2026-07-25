@@ -3,6 +3,7 @@
 #include "movegen.h"
 #include "evaluate.h"
 #include "tt.h"
+#include "zobrist.h" // Add this to access the Zobrist keys for NMP
 #include <iostream>
 #include <chrono>
 
@@ -24,9 +25,7 @@ void check_time() {
     }
 }
 
-// Updated: Now accepts the hash_move from the TT
 int score_move(int move, int hash_move) {
-    // If this move is the best move from a previous search, prioritize it above ALL else!
     if (move == hash_move) return 30000;
 
     int score = 0;
@@ -49,7 +48,6 @@ int score_move(int move, int hash_move) {
     return score;
 }
 
-// Updated: Passes the hash_move down to the scorer
 void sort_moves(MoveList &move_list, int hash_move) {
     int scores[256];
     for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i], hash_move);
@@ -78,7 +76,7 @@ int quiescence(int alpha, int beta) {
     
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list, 0); // No hash move in q-search
+    sort_moves(move_list, 0); 
     
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
@@ -107,26 +105,56 @@ int quiescence(int alpha, int beta) {
     return alpha;
 }
 
-int negamax(int alpha, int beta, int depth) {
+// Updated signature to track if we are allowed to make a null move
+int negamax(int alpha, int beta, int depth, bool allow_null) {
     if ((search_nodes & 2047) == 0) check_time();
     if (abort_search) return 0;
 
-    // 1. Probe the Transposition Table!
     int hash_move = 0;
     int tt_score = read_tt(alpha, beta, depth, hash_move);
-    
-    // If we have a valid cutoff, instantly return it and save thousands of nodes!
     if (tt_score != NO_HASH_ENTRY) return tt_score;
 
     if (depth == 0) return quiescence(alpha, beta);
     search_nodes++;
 
+    int king_square = (side == white) ? get_lsb_index(bitboards[K]) : get_lsb_index(bitboards[k]);
+    int in_check = is_square_attacked(king_square, side ^ 1);
+
+    // --- NULL MOVE PRUNING ---
+    // If depth is high enough, we are not in check, and we haven't just done a null move
+    if (allow_null && depth >= 3 && !in_check) {
+        int enpassant_copy = enpassant;
+        U64 hash_key_copy = hash_key;
+
+        // "Pass" the turn
+        side ^= 1;
+        hash_key ^= side_key;
+        if (enpassant != -1) {
+            hash_key ^= enpassant_keys[enpassant];
+            enpassant = -1;
+        }
+
+        // Search with a reduced depth (R = 2) and forbid back-to-horrible-back null moves
+        int score = -negamax(-beta, -beta + 1, depth - 1 - 2, false);
+
+        // Restore the board
+        side ^= 1;
+        enpassant = enpassant_copy;
+        hash_key = hash_key_copy;
+
+        if (abort_search) return 0;
+
+        // If the score is STILL too good, prune the branch!
+        if (score >= beta) return beta;
+    }
+    // -------------------------
+
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list, hash_move); // Feed the TT move into the sorter!
+    sort_moves(move_list, hash_move);
 
     int legal_moves = 0;
-    int alpha_orig = alpha; // Save the original alpha to determine our flag type later
+    int alpha_orig = alpha; 
     int best_move_this_node = 0;
 
     for (int i = 0; i < move_list.count; i++) {
@@ -141,7 +169,9 @@ int negamax(int alpha, int beta, int depth) {
 
         if (make_move(move) == 0) continue;
         legal_moves++;
-        int score = -negamax(-beta, -alpha, depth - 1);
+        
+        // Normal recursive search, passing 'true' to allow null moves again
+        int score = -negamax(-beta, -alpha, depth - 1, true);
 
         for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
         side = side_copy;
@@ -152,23 +182,20 @@ int negamax(int alpha, int beta, int depth) {
         if (abort_search) return 0;
         
         if (score >= beta) {
-            // Beta Cutoff (Fail-high). We write to TT and prune the branch.
             write_tt(depth, beta, HASH_BETA, move);
             return beta;
         }
         if (score > alpha) {
             alpha = score;
-            best_move_this_node = move; // Track the best move so we can memorize it
+            best_move_this_node = move; 
         }
     }
 
     if (legal_moves == 0) {
-        int king_square = (side == white) ? get_lsb_index(bitboards[K]) : get_lsb_index(bitboards[k]);
-        if (is_square_attacked(king_square, side ^ 1)) return -49000 + (100 - depth);
+        if (in_check) return -49000 + (100 - depth);
         else return 0;
     }
 
-    // 2. Write to the Transposition Table!
     int flag = (alpha > alpha_orig) ? HASH_EXACT : HASH_ALPHA;
     write_tt(depth, alpha, flag, best_move_this_node);
     
@@ -185,7 +212,6 @@ void search_position(int max_depth) {
         MoveList move_list;
         generate_moves(move_list, side);
         
-        // Grab the best move from the previous iteration to sort the root!
         int hash_move = 0;
         read_tt(-50000, 50000, current_depth, hash_move);
         sort_moves(move_list, hash_move);
@@ -204,7 +230,9 @@ void search_position(int max_depth) {
             U64 hash_key_copy = hash_key;
 
             if (make_move(move) == 0) continue; 
-            int score = -negamax(-beta, -alpha, current_depth - 1);
+            
+            // Start the root search allowing null moves on the branches
+            int score = -negamax(-beta, -alpha, current_depth - 1, true);
 
             for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
             side = side_copy;
