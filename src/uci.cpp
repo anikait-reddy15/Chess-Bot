@@ -6,7 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <cstdio>
+#include <cstdio> 
 
 int parse_move(std::string move_string) {
     MoveList move_list;
@@ -25,21 +25,19 @@ int parse_move(std::string move_string) {
         if (source == GET_SOURCE(move) && target == GET_TARGET(move)) {
             int promoted_piece = GET_PROMOTED(move);
             if (promoted_piece) {
-                // Ensure promotion piece matches algebraic notation
                 if ((promoted_piece == Q || promoted_piece == q) && move_string[4] == 'q') return move;
                 if ((promoted_piece == R || promoted_piece == r) && move_string[4] == 'r') return move;
                 if ((promoted_piece == B || promoted_piece == b) && move_string[4] == 'b') return move;
                 if ((promoted_piece == N || promoted_piece == n) && move_string[4] == 'n') return move;
-                continue; // It's a promotion move but doesn't match the requested piece
+                continue; 
             }
-            return move; // Legal match found
+            return move; 
         }
     }
-    return 0; // Invalid move
+    return 0; 
 }
 
 void uci_loop() {
-    // Disable buffering for instant communication with the GUI
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -63,14 +61,14 @@ void uci_loop() {
             std::cout << "readyok\n";
         } 
         else if (token == "ucinewgame") {
-            clear_tt(); // Wipe memory for the new game
+            clear_tt(); 
             parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         } 
         else if (token == "position") {
             iss >> token;
             if (token == "startpos") {
                 parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                iss >> token; // Read "moves" if present
+                iss >> token; 
             } else if (token == "fen") {
                 std::string fen;
                 while (iss >> token && token != "moves") {
@@ -79,7 +77,6 @@ void uci_loop() {
                 parse_fen(fen);
             }
             
-            // Loop through and play all moves given by the GUI
             while (iss >> token) {
                 int move = parse_move(token);
                 if (move == 0) break;
@@ -87,25 +84,33 @@ void uci_loop() {
             }
         } 
         else if (token == "go") {
-            int depth = 5; // Default depth if not specified
-            int wtime = -1, btime = -1;
+            int depth = -1; 
+            int wtime = -1, btime = -1, movetime = -1;
             
             while (iss >> token) {
-                if (token == "depth") {
-                    iss >> depth;
-                } else if (token == "wtime") {
-                    iss >> wtime;
-                } else if (token == "btime") {
-                    iss >> btime;
-                }
+                if (token == "depth") iss >> depth;
+                else if (token == "wtime") iss >> wtime;
+                else if (token == "btime") iss >> btime;
+                else if (token == "movetime") iss >> movetime;
             }
             
-            allocated_time = -1; // Reset time limit
+            allocated_time = -1; 
             
-            // Allocate a fraction of remaining time (~30 moves) if playing a timed game
-            if (wtime != -1 && btime != -1) {
+            // 1. Fixed time per move
+            if (movetime != -1) {
+                allocated_time = movetime;
+                if (depth == -1) depth = 64; 
+            } 
+            // 2. Tournament time control (e.g., 5 minutes for the game)
+            else if (wtime != -1 && btime != -1) {
                 int time_left = (side == white) ? wtime : btime;
+                // Allocate roughly 3% of remaining time per move
                 allocated_time = time_left / 30; 
+                if (depth == -1) depth = 64; 
+            } 
+            // 3. Fallback if user just types "go"
+            else if (depth == -1) {
+                depth = 5; 
             }
             
             abort_search = false;

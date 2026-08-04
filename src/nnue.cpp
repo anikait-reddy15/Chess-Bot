@@ -78,5 +78,6 @@ int evaluate_nnue() {
     }
 
     int centipawn_score = static_cast<int>(output);
-    return (side == white) ? centipawn_score : -centipawn_score;
+    
+    return centipawn_score;
 }
