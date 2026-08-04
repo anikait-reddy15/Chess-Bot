@@ -11,4 +11,5 @@ out/
 .DS_Store
 Thumbs.db
 
+network.bin
 run_engine.txt
