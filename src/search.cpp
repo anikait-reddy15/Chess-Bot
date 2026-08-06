@@ -3,7 +3,7 @@
 #include "movegen.h"
 #include "evaluate.h"
 #include "tt.h"
-#include "zobrist.h" // Add this to access the Zobrist keys for NMP
+#include "zobrist.h" 
 #include <iostream>
 #include <chrono>
 
@@ -13,6 +13,8 @@ std::chrono::time_point<std::chrono::steady_clock> start_time;
 
 int search_nodes = 0;
 int best_move_found = 0;
+
+int killer_moves[2][64];
 
 long long get_time_ms() {
     auto now = std::chrono::steady_clock::now();
@@ -25,7 +27,7 @@ void check_time() {
     }
 }
 
-int score_move(int move, int hash_move) {
+int score_move(int move, int hash_move, int depth) {
     if (move == hash_move) return 30000;
 
     int score = 0;
@@ -44,13 +46,17 @@ int score_move(int move, int hash_move) {
             }
         }
         score += 10000 + piece_weights[victim] - piece_weights[attacker];
+    } else {
+        // Boost non-captures if they were Killer Moves in previous sibling nodes
+        if (move == killer_moves[0][depth]) score += 9000;
+        else if (move == killer_moves[1][depth]) score += 8000;
     }
     return score;
 }
 
-void sort_moves(MoveList &move_list, int hash_move) {
+void sort_moves(MoveList &move_list, int hash_move, int depth) {
     int scores[256];
-    for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i], hash_move);
+    for (int i = 0; i < move_list.count; i++) scores[i] = score_move(move_list.moves[i], hash_move, depth);
     for (int i = 0; i < move_list.count; i++) {
         int max_idx = i;
         for (int j = i + 1; j < move_list.count; j++) {
@@ -76,7 +82,7 @@ int quiescence(int alpha, int beta) {
     
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list, 0); 
+    sort_moves(move_list, 0, 0); // Pass depth 0 for q-search
     
     for (int i = 0; i < move_list.count; i++) {
         int move = move_list.moves[i];
@@ -151,7 +157,7 @@ int negamax(int alpha, int beta, int depth, bool allow_null) {
 
     MoveList move_list;
     generate_moves(move_list, side);
-    sort_moves(move_list, hash_move);
+    sort_moves(move_list, hash_move, depth);
 
     int legal_moves = 0;
     int alpha_orig = alpha; 
@@ -170,8 +176,23 @@ int negamax(int alpha, int beta, int depth, bool allow_null) {
         if (make_move(move) == 0) continue;
         legal_moves++;
         
-        // Normal recursive search, passing 'true' to allow null moves again
-        int score = -negamax(-beta, -alpha, depth - 1, true);
+        int score;
+
+        // --- LATE MOVE REDUCTION (LMR) ---
+        // If we have already checked the best moves (legal_moves >= 4), 
+        // and this is a "quiet" move, we search it at a shallower depth to save time!
+        if (legal_moves >= 4 && depth >= 3 && !in_check && !GET_CAPTURE(move) && !GET_PROMOTED(move)) {
+            // Search with reduced depth (Depth - 2)
+            score = -negamax(-alpha - 1, -alpha, depth - 2, true);
+            
+            // If the move was actually brilliant and beat alpha, we re-search at full depth!
+            if (score > alpha) {
+                score = -negamax(-beta, -alpha, depth - 1, true);
+            }
+        } else {
+            // Normal full depth search
+            score = -negamax(-beta, -alpha, depth - 1, true);
+        }
 
         for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
         side = side_copy;
@@ -183,6 +204,14 @@ int negamax(int alpha, int beta, int depth, bool allow_null) {
         
         if (score >= beta) {
             write_tt(depth, beta, HASH_BETA, move);
+
+            // --- KILLER MOVE RECORDING ---
+            // Save this move as a killer move to prioritize it in sibling branches
+            if (!GET_CAPTURE(move)) {
+                killer_moves[1][depth] = killer_moves[0][depth];
+                killer_moves[0][depth] = move;
+            }
+
             return beta;
         }
         if (score > alpha) {
@@ -205,6 +234,38 @@ int negamax(int alpha, int beta, int depth, bool allow_null) {
 void search_position(int max_depth) {
     int best_move_overall = 0;
     
+    // Clear killer moves for a fresh search
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 64; j++) killer_moves[i][j] = 0;
+    }
+    
+    // --- EMERGENCY FALLBACK MOVE ---
+    // If the GUI gives us 50ms, we might not even finish Depth 1.
+    // We MUST have a legal move ready so we don't return an empty string and forfeit!
+    MoveList emergency_list;
+    generate_moves(emergency_list, side);
+    for(int i = 0; i < emergency_list.count; i++) {
+        U64 bitboards_copy[12];
+        for (int b = 0; b < 12; b++) bitboards_copy[b] = bitboards[b];
+        int side_copy = side;
+        int enpassant_copy = enpassant;
+        int castle_copy = castle;
+        U64 hash_key_copy = hash_key;
+
+        if (make_move(emergency_list.moves[i])) {
+            best_move_overall = emergency_list.moves[i];
+            
+            // Restore board
+            for (int b = 0; b < 12; b++) bitboards[b] = bitboards_copy[b];
+            side = side_copy;
+            enpassant = enpassant_copy;
+            castle = castle_copy;
+            hash_key = hash_key_copy;
+            break; // One legal move is all we need!
+        }
+    }
+    // -------------------------------
+    
     for (int current_depth = 1; current_depth <= max_depth; current_depth++) {
         search_nodes = 0;
         best_move_found = 0;
@@ -214,7 +275,7 @@ void search_position(int max_depth) {
         
         int hash_move = 0;
         read_tt(-50000, 50000, current_depth, hash_move);
-        sort_moves(move_list, hash_move);
+        sort_moves(move_list, hash_move, current_depth);
 
         int alpha = -50000;
         int beta = 50000;

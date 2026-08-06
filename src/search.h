@@ -14,4 +14,7 @@ void search_position(int depth);
 // Helper function to get current time in milliseconds
 long long get_time_ms();
 
+// Arrays to store killer moves for move ordering
+extern int killer_moves[2][64];
+
 #endif

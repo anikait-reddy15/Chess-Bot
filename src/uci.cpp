@@ -86,11 +86,15 @@ void uci_loop() {
         else if (token == "go") {
             int depth = -1; 
             int wtime = -1, btime = -1, movetime = -1;
+            int winc = 0, binc = 0, movestogo = 40; // Default to 40 moves remaining
             
             while (iss >> token) {
                 if (token == "depth") iss >> depth;
                 else if (token == "wtime") iss >> wtime;
                 else if (token == "btime") iss >> btime;
+                else if (token == "winc") iss >> winc;
+                else if (token == "binc") iss >> binc;
+                else if (token == "movestogo") iss >> movestogo;
                 else if (token == "movetime") iss >> movetime;
             }
             
@@ -98,14 +102,25 @@ void uci_loop() {
             
             // 1. Fixed time per move
             if (movetime != -1) {
-                allocated_time = movetime;
+                allocated_time = movetime - 50; // 50ms safety margin
                 if (depth == -1) depth = 64; 
             } 
-            // 2. Tournament time control (e.g., 5 minutes for the game)
+            // 2. Tournament time control
             else if (wtime != -1 && btime != -1) {
                 int time_left = (side == white) ? wtime : btime;
-                // Allocate roughly 3% of remaining time per move
-                allocated_time = time_left / 30; 
+                int increment = (side == white) ? winc : binc;
+                
+                if (movestogo == 0) movestogo = 40; // Default to 40 if GUI omits it
+                
+                // Standard Allocation
+                allocated_time = (time_left / movestogo) + (increment * 3 / 4) - 50; 
+                
+                // Panic State: If under 5 seconds, move lightning fast!
+                if (time_left < 5000) {
+                    allocated_time = time_left / 15;
+                }
+                
+                if (allocated_time < 50) allocated_time = 50; 
                 if (depth == -1) depth = 64; 
             } 
             // 3. Fallback if user just types "go"
